@@ -5,6 +5,7 @@ A modern, scalable Enterprise Resource Planning (ERP) solution designed for scho
 ## 📋 Table of Contents
 
 - [Features](#features)
+- [Demo](#demo)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [Usage](#usage)
@@ -18,6 +19,25 @@ A modern, scalable Enterprise Resource Planning (ERP) solution designed for scho
 - **Staff Portal** - Teacher dashboards and resource management
 - **Analytics & Reports** - Comprehensive analytics and custom reports
 - **Responsive Design** - Mobile-friendly interface for all devices
+
+## 🎬 Demo
+
+### Interactive HTML Demo
+View the interactive demo in your browser:
+```bash
+src/demo-reel.html
+```
+
+### Video Demo
+Watch the School ERP system showcase video:
+```bash
+src/demo-reel.mp4
+```
+Duration: 10 seconds | Resolution: 1280x720 | Format: MP4
+
+**To play the video:**
+- Open with your default video player
+- Or stream from GitHub releases
 
 ## 🚀 Quick Start
 
@@ -60,7 +80,8 @@ cd src
 ```
 school_erps/
 ├── src/
-│   └── demo-reel.html    # Main demo file
+│   ├── demo-reel.html    # Interactive HTML demo
+│   └── demo-reel.mp4     # Video demo (10s showcase)
 ├── README.md              # This file
 ├── .gitignore            # Git ignore file
 └── LICENSE               # License information
