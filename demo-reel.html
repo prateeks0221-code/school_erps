@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>School ERP — Motion Demo Reel</title>
+<!--
+  =========================================================
+  School ERP · Self-Playing Motion Demo
+  =========================================================
+  One-file, auto-advancing reel built to match the existing
+  dark-blue product UI (#0B0F1A / blue accent / Sora).
+  Plays like a showreel — just open in a browser.
+
+  CUSTOMIZE THE CCTV FEEDS
+  ------------------------
+  Scroll down to the CCTV_FEEDS array (search for "CCTV_FEEDS").
+  Each entry is a camera tile. Replace the `src` with your own
+  MP4 / HLS URL to show real footage. The fake detection
+  overlay works on top of whatever video plays.
+
+  CONTROLS
+  --------
+  ▶ / ❚❚  play / pause
+  →       jump to next scene
+  ↻       restart
+  Bottom dots = scenes. Click a dot to jump.
+  =========================================================
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --bg:#0B0F1A;
+    --surface:#111827;
+    --surface-2:#1A2235;
+    --border:#1E2D42;
+    --border-2:#253347;
+    --accent:#3B82F6;
+    --accent-glow:rgba(59,130,246,0.18);
+    --green:#10B981;
+    --green-glow:rgba(16,185,129,0.15);
+    --amber:#F59E0B;
+    --amber-glow:rgba(245,158,11,0.15);
+    --red:#EF4444;
+    --red-glow:rgba(239,68,68,0.15);
+    --purple:#8B5CF6;
+    --purple-glow:rgba(139,92,246,0.15);
+    --cyan:#06B6D4;
+    --cyan-glow:rgba(6,182,212,0.15);
+    --text:#F0F4FF;
+    --muted:#8899AA;
+    --dim:#4A5568;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;letter-spacing:.01em}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(59,130,246,0.12), transparent 60%),
+      radial-gradient(900px 500px at 90% 110%, rgba(139,92,246,0.10), transparent 60%),
+      var(--bg);
+  }
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  /* Stage */
+  .stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:48px;opacity:0;pointer-events:none;transition:opacity .6s ease}
+  .scene.active{opacity:1;pointer-events:auto}
+
+  /* Ambient grid */
+  .grid-bg{position:fixed;inset:0;pointer-events:none;opacity:.35;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.05) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+  }
+  .orb{position:fixed;border-radius:50%;filter:blur(80px);opacity:.4;pointer-events:none;animation:float 18s ease-in-out infinite}
+  .orb.a{width:480px;height:480px;background:radial-gradient(circle,var(--accent),transparent 60%);top:-10%;left:-10%}
+  .orb.b{width:520px;height:520px;background:radial-gradient(circle,var(--purple),transparent 60%);bottom:-15%;right:-10%;animation-delay:-8s}
+
+  /* Caption bar */
+  .caption{
+    position:fixed;left:50%;bottom:72px;transform:translateX(-50%);
+    padding:10px 18px;border:1px solid var(--border-2);background:rgba(17,24,39,.7);backdrop-filter:blur(12px);
+    border-radius:999px;font-size:13px;color:var(--text);
+    box-shadow:0 10px 30px rgba(0,0,0,.4);
+    display:flex;align-items:center;gap:10px;max-width:78vw;
+    opacity:0;transition:opacity .4s ease;
+  }
+  .caption.show{opacity:1}
+  .caption .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 1.5s infinite}
+  .caption .tag{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.14em}
+
+  /* Control bar */
+  .bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:18px;z-index:60;padding:10px 16px;border:1px solid var(--border);background:rgba(11,15,26,.85);border-radius:999px;backdrop-filter:blur(10px)}
+  .bar button{background:transparent;border:0;color:var(--text);font-family:inherit;font-size:14px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;transition:background .2s}
+  .bar button:hover{background:var(--surface-2)}
+  .dots{display:flex;gap:6px}
+  .dots .d{width:7px;height:7px;border-radius:50%;background:var(--border-2);cursor:pointer;transition:all .3s}
+  .dots .d.done{background:var(--accent)}
+  .dots .d.cur{background:var(--accent);box-shadow:0 0 0 4px var(--accent-glow);transform:scale(1.3)}
+  .bar .time{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+
+  /* Shared UI */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;cursor:default;border:1px solid transparent;transition:all .25s}
+  .btn.primary{background:var(--accent);color:white;box-shadow:0 8px 24px rgba(59,130,246,.35)}
+  .btn.ghost{background:transparent;color:var(--text);border-color:var(--border)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .bg-green{background:var(--green-glow);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+  .bg-amber{background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+  .bg-red{background:var(--red-glow);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+  .bg-blue{background:var(--accent-glow);color:var(--accent);border:1px solid rgba(59,130,246,.3)}
+  .bg-purple{background:var(--purple-glow);color:var(--purple);border:1px solid rgba(139,92,246,.3)}
+
+  /* --- Scene: Intro --- */
+  .intro{text-align:center}
+  .logo-mark{width:92px;height:92px;border-radius:22px;margin:0 auto 24px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--accent),var(--purple));
+    box-shadow:0 20px 60px rgba(59,130,246,.45), inset 0 1px 0 rgba(255,255,255,.3);
+    animation:logoIn 1s cubic-bezier(.2,.9,.3,1) both}
+  .logo-mark svg{width:52px;height:52px;color:white}
+  .brand-name{font-size:64px;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,#fff 30%,#8B9DC3);-webkit-background-clip:text;background-clip:text;color:transparent;animation:fadeUp 1s .25s both}
+  .brand-tag{color:var(--muted);margin-top:14px;font-size:17px;animation:fadeUp 1s .45s both}
+  .brand-sub{color:var(--dim);margin-top:28px;font-size:12px;letter-spacing:.4em;text-transform:uppercase;animation:fadeUp 1s .65s both}
+
+  /* --- Scene: Login --- */
+  .login-wrap{display:flex;gap:44px;align-items:center}
+  .login-side{max-width:360px}
+  .login-side h2{font-size:40px;line-height:1.1;font-weight:600;letter-spacing:-.02em;margin-bottom:16px}
+  .login-side p{color:var(--muted);line-height:1.6;font-size:14px}
+  .login-card{width:380px;padding:32px;border-radius:18px;background:var(--surface);border:1px solid var(--border);box-shadow:0 30px 80px rgba(0,0,0,.45)}
+  .login-card .lh{font-size:20px;font-weight:600;margin-bottom:6px}
+  .login-card .ls{font-size:12px;color:var(--muted);margin-bottom:22px}
+  .fld{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .fld label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+  .fld .ipt{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:13px;color:var(--text);min-height:40px;display:flex;align-items:center;position:relative}
+  .cursor{display:inline-block;width:1.5px;height:14px;background:var(--accent);margin-left:2px;animation:blink 1s steps(2) infinite;vertical-align:middle}
+  .fld .ipt.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .login-btn{margin-top:8px;width:100%;padding:12px;border-radius:10px;background:var(--accent);color:white;font-weight:500;font-size:13px;text-align:center;transition:all .3s;box-shadow:0 8px 24px rgba(59,130,246,.3)}
+  .login-btn.loading{background:var(--surface-2);color:var(--muted)}
+  .login-btn.ok{background:var(--green);box-shadow:0 8px 24px rgba(16,185,129,.35)}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:white;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+
+  /* --- Shared: App chrome for product scenes --- */
+  .app{display:grid;grid-template-columns:220px 1fr;width:min(1180px,95vw);height:min(680px,82vh);background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.55)}
+  .sb{background:#0E1523;border-right:1px solid var(--border);padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+  .sb .brand{display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:16px}
+  .sb .brand .m{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px}
+  .sb .brand .n{font-weight:600;font-size:14px}
+  .nav{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-size:13px;color:var(--muted);cursor:default;transition:all .25s}
+  .nav .ic{width:16px;text-align:center;font-size:14px}
+  .nav.active{background:var(--accent-glow);color:var(--accent);box-shadow:inset 0 0 0 1px rgba(59,130,246,.3)}
+  .nav .bdg{margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px}
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .tb{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--border);background:rgba(17,24,39,.4)}
+  .tb h3{font-size:16px;font-weight:600}
+  .tb .user{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .tb .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:600;color:white;font-size:12px}
+  .body{flex:1;overflow:hidden;padding:22px;position:relative}
+
+  /* --- Dashboard --- */
+  .statrow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .stat{padding:16px;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,var(--surface-2),var(--surface));opacity:0;transform:translateY(10px);animation:fadeUp .6s ease forwards}
+  .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+  .stat .v{font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .stat .s{font-size:11px;margin-top:4px}
+  .stat .s.up{color:var(--green)}
+  .stat .s.dn{color:var(--red)}
+  .twocol{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+  .chart-card,.act-card{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+  .chart-card h4,.act-card h4{font-size:13px;font-weight:500;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+  .bars{display:flex;gap:10px;align-items:flex-end;height:140px;padding-top:10px}
+  .bars .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .bars .bar-col .bb{width:100%;background:linear-gradient(180deg,var(--accent),rgba(59,130,246,.3));border-radius:5px 5px 0 0;height:0;transition:height .9s cubic-bezier(.2,.9,.3,1)}
+  .bars .bar-col.active .bb{box-shadow:0 0 20px var(--accent-glow)}
+  .bars .bar-col .bl{font-size:10px;color:var(--muted)}
+  .act{display:flex;gap:10px;padding:9px 4px;border-bottom:1px dashed var(--border);font-size:12px;opacity:0;animation:fadeUp .5s forwards}
+  .act:last-child{border-bottom:0}
+  .act .ai{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+  .act .at{color:var(--muted);font-size:10px;margin-left:auto}
+
+  /* --- Fees scene --- */
+  .fee-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%}
+  .stu-list{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;overflow:hidden}
+  .stu-list h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px}
+  .stu-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;transition:all .35s;margin-bottom:4px}
+  .stu-row .ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:600;color:white;font-size:11px}
+  .stu-row .snm{font-size:13px}
+  .stu-row .scls{color:var(--muted);font-size:11px;margin-left:auto}
+  .stu-row.sel{background:var(--accent-glow);box-shadow:inset 0 0 0 1px rgba(59,130,246,.3)}
+  .receipt{background:linear-gradient(180deg,#0F172B,var(--surface));border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden}
+  .receipt::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(59,130,246,0.03) 0 10px,transparent 10px 20px);pointer-events:none}
+  .rcp-h{display:flex;align-items:center;justify-content:space-between;border-bottom:1px dashed var(--border);padding-bottom:10px;margin-bottom:12px}
+  .rcp-h .ri{font-size:11px;color:var(--muted)}
+  .rcp-h .rn{font-weight:600}
+  .rcp-li{display:flex;justify-content:space-between;font-size:12px;padding:6px 0;opacity:0;transform:translateX(-10px);animation:slideInL .4s forwards}
+  .rcp-li .k{color:var(--muted)}
+  .rcp-total{display:flex;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-weight:600;font-size:15px}
+  .rcp-total .tv{color:var(--green)}
+  .stamp{position:absolute;right:18px;bottom:18px;border:2px solid var(--green);color:var(--green);padding:4px 12px;border-radius:6px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;transform:rotate(-12deg) scale(0);opacity:0;animation:stamp .6s .8s cubic-bezier(.2,.9,.3,1) forwards}
+
+  /* --- Attendance --- */
+  .att-wrap{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;height:100%}
+  .att-grid{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;overflow:hidden}
+  .att-head{display:grid;grid-template-columns:140px repeat(5,1fr);gap:6px;padding:6px 4px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .att-row{display:grid;grid-template-columns:140px repeat(5,1fr);gap:6px;padding:7px 4px;align-items:center;border-bottom:1px dashed rgba(30,45,66,.6);font-size:12px}
+  .att-row .nm{display:flex;align-items:center;gap:8px}
+  .att-row .mini{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:600;color:white;font-size:10px}
+  .tick{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim);border:1px solid var(--border);margin:0 auto;opacity:0;transition:all .35s}
+  .tick.on.p{background:var(--green-glow);color:var(--green);border-color:rgba(16,185,129,.4);opacity:1;transform:scale(1)}
+  .tick.on.a{background:var(--red-glow);color:var(--red);border-color:rgba(239,68,68,.4);opacity:1;transform:scale(1)}
+  .att-summary{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column}
+  .ring{position:relative;width:160px;height:160px;margin:10px auto 20px}
+  .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .ring .ringlbl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .ringlbl .pct{font-size:30px;font-weight:600}
+  .ring .ringlbl .tx{font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+
+  /* --- Report card --- */
+  .rpt-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%}
+  .rpt-card{background:linear-gradient(180deg,#0F172B,var(--surface));border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+  .rpt-card h4{font-size:13px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px}
+  .rpt-sub{display:flex;justify-content:space-between;font-size:12px;padding:8px 0;border-bottom:1px dashed rgba(30,45,66,.5);opacity:0;animation:fadeUp .5s forwards}
+  .rpt-sub .g{font-weight:600}
+  .grade-A{color:var(--green)}
+  .grade-B{color:var(--accent)}
+  .grade-C{color:var(--amber)}
+  .gpa-box{text-align:center;margin-top:16px;padding:14px;border-radius:12px;background:var(--accent-glow);border:1px solid rgba(59,130,246,.3)}
+  .gpa-box .k{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+  .gpa-box .v{font-size:34px;font-weight:700;color:var(--accent);letter-spacing:-.02em}
+
+  /* --- CCTV --- */
+  .cctv-wrap{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;height:100%}
+  .cam-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px}
+  .cam{position:relative;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#050912}
+  .cam video{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.05) saturate(.85)}
+  .cam .cam-fake{position:absolute;inset:0;background:
+    radial-gradient(600px 200px at 30% 40%, rgba(59,130,246,.1), transparent 60%),
+    linear-gradient(180deg,#0A1020 0%, #050912 100%);
+    overflow:hidden}
+  .cam .cam-fake::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);animation:scanlines 4s linear infinite;opacity:.5}
+  .cam .noise{position:absolute;inset:0;opacity:.08;mix-blend-mode:overlay;
+    background-image:radial-gradient(circle at 20% 30%, white 0.5px, transparent 1px), radial-gradient(circle at 70% 80%, white 0.5px, transparent 1px);
+    background-size:3px 3px, 5px 5px}
+  .cam .walker{position:absolute;top:55%;width:22px;height:44px;border-radius:5px;background:linear-gradient(180deg, rgba(240,244,255,.6), rgba(240,244,255,.2));box-shadow:0 0 20px rgba(240,244,255,.2);transform:translate(-50%,-50%);animation:walkLR 9s linear infinite}
+  .cam.c2 .walker{top:50%;animation:walkRL 11s linear infinite;background:linear-gradient(180deg, rgba(59,130,246,.8), rgba(59,130,246,.3))}
+  .cam.c3 .walker{top:62%;animation:walkLR 7s linear infinite;background:linear-gradient(180deg, rgba(139,92,246,.7), rgba(139,92,246,.3))}
+  .cam.c4 .walker{top:48%;animation:walkRL 10s linear infinite;background:linear-gradient(180deg, rgba(245,158,11,.7), rgba(245,158,11,.2))}
+  .cam .w2{left:70%;top:70% !important;animation-delay:-3s !important;width:18px;height:38px}
+  .bbox{position:absolute;border:1.5px solid var(--green);border-radius:2px;box-shadow:0 0 20px rgba(16,185,129,.4);animation:bboxFollow linear infinite}
+  .bbox::before{content:attr(data-label);position:absolute;top:-20px;left:-1px;background:var(--green);color:#04130A;font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;font-weight:600}
+  .cam .ovl{position:absolute;top:8px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text);text-shadow:0 1px 2px rgba(0,0,0,.6);z-index:3}
+  .cam .ovl .name{display:flex;align-items:center;gap:6px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .cam .ovl .live{display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.85);padding:2px 7px;border-radius:4px;font-weight:600}
+  .cam .ovl .live::before{content:"";width:5px;height:5px;background:white;border-radius:50%;animation:pulse 1s infinite}
+  .cam .stats{position:absolute;left:10px;bottom:8px;font-size:9px;color:rgba(255,255,255,.75);letter-spacing:.08em;z-index:3}
+  .cctv-side{display:flex;flex-direction:column;gap:12px}
+  .cctv-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .cctv-panel h4{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;margin-bottom:10px;display:flex;justify-content:space-between}
+  .cctv-panel h4 .live-dot{color:var(--green);display:flex;align-items:center;gap:5px}
+  .cctv-panel h4 .live-dot::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.2s infinite}
+  .evt{display:flex;gap:10px;padding:8px 4px;border-bottom:1px dashed rgba(30,45,66,.6);font-size:11.5px;opacity:0;transform:translateX(10px);animation:slideInR .4s forwards}
+  .evt:last-child{border-bottom:0}
+  .evt .tm{color:var(--muted);font-size:10px;min-width:42px}
+  .evt .ico{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+  .aisig{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .aisig .sig{padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+  .aisig .sig .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .aisig .sig .v{font-size:18px;font-weight:600;margin-top:2px}
+  .aisig .sig .v.g{color:var(--green)}
+
+  /* --- Architecture --- */
+  .arch{width:min(1180px,95vw);height:min(680px,82vh);position:relative;padding:40px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 40px 100px rgba(0,0,0,.55);overflow:hidden}
+  .arch h3{font-size:18px;font-weight:600;margin-bottom:4px}
+  .arch .sub{font-size:12px;color:var(--muted);margin-bottom:24px}
+  .arch-canvas{position:relative;width:100%;height:calc(100% - 60px)}
+  .node{position:absolute;padding:14px 16px;background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);border-radius:12px;min-width:150px;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;transform:scale(.9);transition:all .55s cubic-bezier(.2,.9,.3,1)}
+  .node.in{opacity:1;transform:scale(1)}
+  .node .nt{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+  .node .ns{font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+  .node .dotc{width:8px;height:8px;border-radius:50%}
+  .node.fe{left:6%;top:42%}
+  .node.api{left:30%;top:15%}
+  .node.auth{left:30%;top:72%}
+  .node.svc{left:52%;top:42%}
+  .node.db{left:75%;top:10%}
+  .node.st{left:75%;top:42%}
+  .node.ai{left:75%;top:74%}
+  .arch-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .arch-svg .edge{fill:none;stroke:var(--border-2);stroke-width:1.5;stroke-dasharray:6 6;opacity:0;transition:opacity .6s;stroke-linecap:round}
+  .arch-svg .edge.in{opacity:.7;animation:dash 2s linear infinite}
+  .arch-svg .pulse{fill:var(--accent);filter:drop-shadow(0 0 6px var(--accent));opacity:0}
+  .arch-svg .pulse.in{opacity:1;animation:packet 2.5s linear infinite}
+
+  /* --- Outro feature grid --- */
+  .outro{text-align:center;width:min(1080px,92vw)}
+  .outro .big{font-size:48px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px;background:linear-gradient(135deg,#fff 20%,#8B9DC3);-webkit-background-clip:text;background-clip:text;color:transparent;animation:fadeUp .8s both}
+  .outro .tg{color:var(--muted);font-size:15px;margin-bottom:32px;animation:fadeUp .8s .1s both}
+  .feat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+  .fitem{padding:20px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);text-align:left;opacity:0;transform:translateY(12px);animation:fadeUp .5s forwards}
+  .fitem .fi{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
+  .fitem .fn{font-size:13px;font-weight:600}
+  .fitem .fd{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+  .cta{display:inline-flex;gap:10px;padding:14px 28px;background:var(--accent);border-radius:12px;font-weight:600;font-size:14px;color:white;box-shadow:0 14px 40px rgba(59,130,246,.4);animation:fadeUp .8s .8s both}
+
+  /* Animations */
+  @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes logoIn{0%{opacity:0;transform:scale(.4) rotate(-15deg)}60%{transform:scale(1.08) rotate(6deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+  @keyframes blink{50%{opacity:0}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes float{0%,100%{transform:translateY(0) translateX(0)}50%{transform:translateY(-40px) translateX(20px)}}
+  @keyframes dash{to{stroke-dashoffset:-24}}
+  @keyframes packet{0%{offset-distance:0%}100%{offset-distance:100%}}
+  @keyframes stamp{0%{opacity:0;transform:rotate(-12deg) scale(2)}100%{opacity:1;transform:rotate(-12deg) scale(1)}}
+  @keyframes slideInL{to{opacity:1;transform:translateX(0)}}
+  @keyframes slideInR{to{opacity:1;transform:translateX(0)}}
+  @keyframes scanlines{to{transform:translateY(6px)}}
+  @keyframes walkLR{0%{left:-6%}100%{left:106%}}
+  @keyframes walkRL{0%{left:106%}100%{left:-6%}}
+  @keyframes bboxFollow{0%{transform:translateX(0)}100%{transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="orb a"></div>
+<div class="orb b"></div>
+
+<div class="stage" id="stage">
+  <!-- Scene 1: Intro -->
+  <section class="scene" data-scene="intro">
+    <div class="intro">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="brand-name">School&nbsp;ERP</div>
+      <div class="brand-tag">One platform to run fees, attendance, report cards & campus security.</div>
+      <div class="brand-sub">A MOTION DEMO · 2026</div>
+    </div>
+  </section>
+
+  <!-- Scene 2: Login -->
+  <section class="scene" data-scene="login">
+    <div class="login-wrap">
+      <div class="login-side">
+        <h2>Welcome back,<br/>Principal.</h2>
+        <p>Sign in to see today's fee collections, attendance rolls, live campus cameras, and every metric that matters — on one pane of glass.</p>
+      </div>
+      <div class="login-card">
+        <div class="lh">Sign in to your school</div>
+        <div class="ls">Secure · Role-based access</div>
+        <div class="fld">
+          <label>Email</label>
+          <div class="ipt focus" id="typ-email"><span id="typ-email-val"></span><span class="cursor"></span></div>
+        </div>
+        <div class="fld">
+          <label>Password</label>
+          <div class="ipt" id="typ-pass"><span id="typ-pass-val" class="mono"></span></div>
+        </div>
+        <div class="login-btn" id="loginBtn">Sign in</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 3: Dashboard -->
+  <section class="scene" data-scene="dashboard">
+    <div class="app">
+      <aside class="sb">
+        <div class="brand"><div class="m">S</div><div class="n">School ERP</div></div>
+        <div class="nav active"><span class="ic">⊞</span> Dashboard</div>
+        <div class="nav"><span class="ic">₹</span> Fees <span class="bdg">3</span></div>
+        <div class="nav"><span class="ic">◈</span> Report Cards</div>
+        <div class="nav"><span class="ic">◉</span> Attendance</div>
+        <div class="nav"><span class="ic">◎</span> Students</div>
+        <div class="nav"><span class="ic">▣</span> Surveillance</div>
+        <div class="nav"><span class="ic">⚙</span> Settings</div>
+      </aside>
+      <div class="main">
+        <div class="tb">
+          <h3>Dashboard</h3>
+          <div class="user"><div class="av">PR</div><div>Principal · Admin</div></div>
+        </div>
+        <div class="body">
+          <div class="statrow" id="statrow">
+            <div class="stat" style="animation-delay:.05s"><div class="l">Total Students <span>👥</span></div><div class="v" data-count="1248">0</div><div class="s up">▲ 3.2% this term</div></div>
+            <div class="stat" style="animation-delay:.15s"><div class="l">Fee Collected <span>₹</span></div><div class="v" data-count="4820000" data-prefix="₹" data-format="lakh">₹0</div><div class="s up">▲ 12% vs last month</div></div>
+            <div class="stat" style="animation-delay:.25s"><div class="l">Attendance <span>◉</span></div><div class="v" data-count="96" data-suffix="%">0%</div><div class="s up">▲ 1.8 pts</div></div>
+            <div class="stat" style="animation-delay:.35s"><div class="l">Pending Dues <span>⚠</span></div><div class="v" data-count="62" data-prefix="₹" data-format="k">₹0k</div><div class="s dn">▼ ₹14k this week</div></div>
+          </div>
+          <div class="twocol">
+            <div class="chart-card">
+              <h4>Fee Collection · Last 7 days <span style="color:var(--accent)">₹48.2L</span></h4>
+              <div class="bars" id="bars">
+                <div class="bar-col"><div class="bb" data-h="42"></div><div class="bl">Mon</div></div>
+                <div class="bar-col"><div class="bb" data-h="58"></div><div class="bl">Tue</div></div>
+                <div class="bar-col"><div class="bb" data-h="36"></div><div class="bl">Wed</div></div>
+                <div class="bar-col"><div class="bb" data-h="72"></div><div class="bl">Thu</div></div>
+                <div class="bar-col active"><div class="bb" data-h="96"></div><div class="bl">Fri</div></div>
+                <div class="bar-col"><div class="bb" data-h="60"></div><div class="bl">Sat</div></div>
+                <div class="bar-col"><div class="bb" data-h="48"></div><div class="bl">Sun</div></div>
+              </div>
+            </div>
+            <div class="act-card">
+              <h4>Recent Activity</h4>
+              <div id="actfeed"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 4: Fees -->
+  <section class="scene" data-scene="fees">
+    <div class="app">
+      <aside class="sb">
+        <div class="brand"><div class="m">S</div><div class="n">School ERP</div></div>
+        <div class="nav"><span class="ic">⊞</span> Dashboard</div>
+        <div class="nav active"><span class="ic">₹</span> Fees <span class="bdg">3</span></div>
+        <div class="nav"><span class="ic">◈</span> Report Cards</div>
+        <div class="nav"><span class="ic">◉</span> Attendance</div>
+        <div class="nav"><span class="ic">◎</span> Students</div>
+        <div class="nav"><span class="ic">▣</span> Surveillance</div>
+        <div class="nav"><span class="ic">⚙</span> Settings</div>
+      </aside>
+      <div class="main">
+        <div class="tb">
+          <h3>Fee Collection · Generate Receipt</h3>
+          <div class="user"><span class="badge bg-blue">Q1 2026</span></div>
+        </div>
+        <div class="body">
+          <div class="fee-wrap">
+            <div class="stu-list">
+              <h4>Select student</h4>
+              <div class="stu-row" data-idx="0"><div class="ava">AS</div><div class="snm">Aarav Sharma</div><div class="scls">Class 5 · A</div></div>
+              <div class="stu-row" data-idx="1"><div class="ava">PP</div><div class="snm">Priya Patel</div><div class="scls">Class 3 · B</div></div>
+              <div class="stu-row" data-idx="2"><div class="ava">RK</div><div class="snm">Rohit Kumar</div><div class="scls">LKG · A</div></div>
+              <div class="stu-row" data-idx="3"><div class="ava">SG</div><div class="snm">Sneha Gupta</div><div class="scls">Class 7 · A</div></div>
+              <div class="stu-row" data-idx="4"><div class="ava">KV</div><div class="snm">Karan Verma</div><div class="scls">Nursery · A</div></div>
+            </div>
+            <div class="receipt" id="receipt">
+              <div class="rcp-h"><div><div class="ri mono">RCP-00241 · 25 Apr 2026</div><div class="rn">Aarav Sharma</div></div><span class="badge bg-blue">Class 5 · A</span></div>
+              <div id="rcpItems"></div>
+              <div class="rcp-total"><span>Total Due</span><span class="tv mono" id="rcpTotal">₹0</span></div>
+              <div class="stamp">PAID</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 5: Attendance -->
+  <section class="scene" data-scene="attendance">
+    <div class="app">
+      <aside class="sb">
+        <div class="brand"><div class="m">S</div><div class="n">School ERP</div></div>
+        <div class="nav"><span class="ic">⊞</span> Dashboard</div>
+        <div class="nav"><span class="ic">₹</span> Fees</div>
+        <div class="nav"><span class="ic">◈</span> Report Cards</div>
+        <div class="nav active"><span class="ic">◉</span> Attendance</div>
+        <div class="nav"><span class="ic">◎</span> Students</div>
+        <div class="nav"><span class="ic">▣</span> Surveillance</div>
+        <div class="nav"><span class="ic">⚙</span> Settings</div>
+      </aside>
+      <div class="main">
+        <div class="tb">
+          <h3>Attendance · Class 5 · Section A</h3>
+          <div class="user"><span class="badge bg-green">Marking live</span></div>
+        </div>
+        <div class="body">
+          <div class="att-wrap">
+            <div class="att-grid">
+              <div class="att-head"><div>Student</div><div style="text-align:center">Mon</div><div style="text-align:center">Tue</div><div style="text-align:center">Wed</div><div style="text-align:center">Thu</div><div style="text-align:center">Fri</div></div>
+              <div id="attRows"></div>
+            </div>
+            <div class="att-summary">
+              <h4 style="color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">Class 5A · Week 17</h4>
+              <div class="ring">
+                <svg viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="8"/>
+                  <circle id="attRing" cx="60" cy="60" r="50" fill="none" stroke="var(--green)" stroke-width="8" stroke-linecap="round"
+                          stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset 1.5s cubic-bezier(.2,.9,.3,1); filter:drop-shadow(0 0 8px rgba(16,185,129,.5))"/>
+                </svg>
+                <div class="ringlbl"><div class="pct" id="attPct">0%</div><div class="tx">Present</div></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto">
+                <div style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em">Present</div><div style="font-size:20px;font-weight:600;color:var(--green)" id="attP">0</div></div>
+                <div style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em">Absent</div><div style="font-size:20px;font-weight:600;color:var(--red)" id="attA">0</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 6: Report card -->
+  <section class="scene" data-scene="reports">
+    <div class="app">
+      <aside class="sb">
+        <div class="brand"><div class="m">S</div><div class="n">School ERP</div></div>
+        <div class="nav"><span class="ic">⊞</span> Dashboard</div>
+        <div class="nav"><span class="ic">₹</span> Fees</div>
+        <div class="nav active"><span class="ic">◈</span> Report Cards</div>
+        <div class="nav"><span class="ic">◉</span> Attendance</div>
+        <div class="nav"><span class="ic">◎</span> Students</div>
+        <div class="nav"><span class="ic">▣</span> Surveillance</div>
+        <div class="nav"><span class="ic">⚙</span> Settings</div>
+      </aside>
+      <div class="main">
+        <div class="tb">
+          <h3>Report Card · Sneha Gupta · Class 7 A</h3>
+          <div class="user"><span class="badge bg-purple">Term 1 · 2026</span></div>
+        </div>
+        <div class="body">
+          <div class="rpt-wrap">
+            <div class="rpt-card">
+              <h4>Subject Performance</h4>
+              <div id="rptSubs"></div>
+              <div class="gpa-box"><div class="k">Grade Point Average</div><div class="v mono" id="gpa">0.0</div></div>
+            </div>
+            <div class="rpt-card">
+              <h4>Marks Distribution</h4>
+              <div style="height:180px;display:flex;gap:12px;align-items:flex-end;padding-top:20px" id="rptBars"></div>
+              <div style="margin-top:16px;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">Teacher's Remark</div>
+                <div style="font-size:13px;line-height:1.5">Sneha has shown <span style="color:var(--green)">consistent improvement</span> in Science and Math this term. Keep up the excellent work!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 7: CCTV -->
+  <section class="scene" data-scene="cctv">
+    <div class="app">
+      <aside class="sb">
+        <div class="brand"><div class="m">S</div><div class="n">School ERP</div></div>
+        <div class="nav"><span class="ic">⊞</span> Dashboard</div>
+        <div class="nav"><span class="ic">₹</span> Fees</div>
+        <div class="nav"><span class="ic">◈</span> Report Cards</div>
+        <div class="nav"><span class="ic">◉</span> Attendance</div>
+        <div class="nav"><span class="ic">◎</span> Students</div>
+        <div class="nav active"><span class="ic">▣</span> Surveillance</div>
+        <div class="nav"><span class="ic">⚙</span> Settings</div>
+      </aside>
+      <div class="main">
+        <div class="tb">
+          <h3>Campus Surveillance · Live AI Inference</h3>
+          <div class="user"><span class="badge bg-green">4/4 cameras online</span></div>
+        </div>
+        <div class="body">
+          <div class="cctv-wrap">
+            <div class="cam-grid" id="camGrid"></div>
+            <div class="cctv-side">
+              <div class="cctv-panel">
+                <h4>Live Detections <span class="live-dot">LIVE</span></h4>
+                <div id="evtLog"></div>
+              </div>
+              <div class="cctv-panel">
+                <h4>AI Inference</h4>
+                <div class="aisig">
+                  <div class="sig"><div class="k">Model</div><div class="v mono" style="font-size:12px">YOLOv8-n</div></div>
+                  <div class="sig"><div class="k">Latency</div><div class="v g">42<span style="font-size:11px;color:var(--muted)"> ms</span></div></div>
+                  <div class="sig"><div class="k">Detections / min</div><div class="v">14</div></div>
+                  <div class="sig"><div class="k">GPU Load</div><div class="v" style="color:var(--amber)">38<span style="font-size:11px;color:var(--muted)"> %</span></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 8: Architecture -->
+  <section class="scene" data-scene="arch">
+    <div class="arch">
+      <h3>System Architecture</h3>
+      <div class="sub">Modern, cloud-native stack · built to scale from 100 to 10,000 students</div>
+      <div class="arch-canvas" id="archCanvas">
+        <div class="node fe" data-d="0"><div class="nt"><span class="dotc" style="background:var(--accent)"></span> Frontend</div><div class="ns">React · Vite · Tailwind</div></div>
+        <div class="node api" data-d="1"><div class="nt"><span class="dotc" style="background:var(--cyan)"></span> API Gateway</div><div class="ns">Node · Express · REST</div></div>
+        <div class="node auth" data-d="2"><div class="nt"><span class="dotc" style="background:var(--amber)"></span> Auth Service</div><div class="ns">JWT · RBAC · OTP</div></div>
+        <div class="node svc" data-d="3"><div class="nt"><span class="dotc" style="background:var(--purple)"></span> Core Services</div><div class="ns">Fees · Attendance · Reports</div></div>
+        <div class="node db" data-d="4"><div class="nt"><span class="dotc" style="background:var(--green)"></span> PostgreSQL</div><div class="ns">Students · Fees · Marks</div></div>
+        <div class="node st" data-d="5"><div class="nt"><span class="dotc" style="background:var(--green)"></span> S3 Storage</div><div class="ns">Docs · Report PDFs</div></div>
+        <div class="node ai" data-d="6"><div class="nt"><span class="dotc" style="background:var(--red)"></span> AI / CCTV Inference</div><div class="ns">YOLOv8 · RTSP · Alerts</div></div>
+
+        <svg class="arch-svg" id="archSvg" preserveAspectRatio="none" viewBox="0 0 1000 540">
+          <path class="edge" id="e1" d="M180,270 C240,270 260,160 340,160"/>
+          <path class="edge" id="e2" d="M180,270 C240,270 260,420 340,420"/>
+          <path class="edge" id="e3" d="M430,190 C500,200 520,260 570,270"/>
+          <path class="edge" id="e4" d="M430,420 C500,410 520,310 570,290"/>
+          <path class="edge" id="e5" d="M700,270 C740,250 750,140 800,140"/>
+          <path class="edge" id="e6" d="M700,275 C740,275 750,275 800,275"/>
+          <path class="edge" id="e7" d="M700,290 C740,310 750,420 800,420"/>
+          <circle class="pulse" id="p1" r="4" style="offset-path:path('M180,270 C240,270 260,160 340,160')"/>
+          <circle class="pulse" id="p2" r="4" style="offset-path:path('M430,190 C500,200 520,260 570,270')"/>
+          <circle class="pulse" id="p3" r="4" style="offset-path:path('M700,275 C740,275 750,275 800,275')"/>
+          <circle class="pulse" id="p4" r="4" style="offset-path:path('M700,290 C740,310 750,420 800,420')"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scene 9: Outro -->
+  <section class="scene" data-scene="outro">
+    <div class="outro">
+      <div class="big">Every corner of your school.<br/>One dashboard.</div>
+      <div class="tg">Students · Fees · Attendance · Report Cards · Surveillance · and more</div>
+      <div class="feat" id="featGrid">
+        <div class="fitem" style="animation-delay:.1s"><div class="fi" style="background:var(--accent-glow);color:var(--accent)">◎</div><div class="fn">Students</div><div class="fd">Enroll, manage records, siblings, parent contacts.</div></div>
+        <div class="fitem" style="animation-delay:.2s"><div class="fi" style="background:var(--green-glow);color:var(--green)">₹</div><div class="fn">Fees</div><div class="fd">Auto-compute, receipts, UPI & online collection.</div></div>
+        <div class="fitem" style="animation-delay:.3s"><div class="fi" style="background:var(--purple-glow);color:var(--purple)">◉</div><div class="fn">Attendance</div><div class="fd">One-tap marking, parent SMS, biometric-ready.</div></div>
+        <div class="fitem" style="animation-delay:.4s"><div class="fi" style="background:var(--cyan-glow);color:var(--cyan)">◈</div><div class="fn">Report Cards</div><div class="fd">Subject marks, grades, PDF export, teacher remarks.</div></div>
+        <div class="fitem" style="animation-delay:.5s"><div class="fi" style="background:var(--red-glow);color:var(--red)">▣</div><div class="fn">Surveillance</div><div class="fd">AI person-detection, real-time alerts, 24×7 feed.</div></div>
+        <div class="fitem" style="animation-delay:.6s"><div class="fi" style="background:var(--amber-glow);color:var(--amber)">🚌</div><div class="fn">Transport</div><div class="fd">Live bus tracking, routes, pickup notifications.</div></div>
+        <div class="fitem" style="animation-delay:.7s"><div class="fi" style="background:var(--accent-glow);color:var(--accent)">📚</div><div class="fn">Library</div><div class="fd">Issue/return, fines, catalogue, student history.</div></div>
+        <div class="fitem" style="animation-delay:.8s"><div class="fi" style="background:var(--green-glow);color:var(--green)">✉</div><div class="fn">Communications</div><div class="fd">SMS, email, in-app broadcasts to parents.</div></div>
+      </div>
+      <div class="cta">Run your school on autopilot →</div>
+    </div>
+  </section>
+</div>
+
+<div class="caption" id="caption"><span class="dot"></span><span class="tag" id="capTag">SCENE</span><span id="capText"></span></div>
+
+<div class="bar">
+  <button id="btnBack" title="Previous">‹</button>
+  <button id="btnPlay" title="Play / Pause">❚❚</button>
+  <button id="btnNext" title="Next">›</button>
+  <div class="dots" id="dots"></div>
+  <span class="time" id="timeLbl">00 / 00</span>
+  <button id="btnRestart" title="Restart">↻</button>
+</div>
+
+<script>
+/* ==============================================================
+   CCTV_FEEDS — replace src values with your real camera URLs.
+   The stylized overlay works on top of any video.
+   ============================================================== */
+const CCTV_FEEDS = [
+  { name: "Main Gate",  src: "", fallback: "c1", zone: "ENTRY",     w1: {left:"30%",top:"58%"} },
+  { name: "Corridor",   src: "", fallback: "c2", zone: "BLOCK A",   w1: {left:"40%",top:"52%"} },
+  { name: "Playground", src: "", fallback: "c3", zone: "FIELD",     w1: {left:"55%",top:"60%"} },
+  { name: "Reception",  src: "", fallback: "c4", zone: "LOBBY",     w1: {left:"45%",top:"50%"} },
+];
+
+/* ==============================================================
+   Scenes with durations (ms)
+   ============================================================== */
+const SCENES = [
+  { id:"intro",      d:3500, tag:"INTRO",       cap:"School ERP · A modern operating system for your school." },
+  { id:"login",      d:4500, tag:"SIGN IN",     cap:"Secure sign-in with role-based access." },
+  { id:"dashboard",  d:6500, tag:"DASHBOARD",   cap:"Every metric that matters — collections, attendance, dues — in one pane." },
+  { id:"fees",       d:7000, tag:"FEE COLLECTION", cap:"Pick a student · auto-compute fees · print a receipt in seconds." },
+  { id:"attendance", d:6500, tag:"ATTENDANCE",  cap:"One-tap marking for the whole class, with instant analytics." },
+  { id:"reports",    d:6500, tag:"REPORT CARDS",cap:"Subject-wise grades, GPA, and teacher remarks — ready to print." },
+  { id:"cctv",       d:8500, tag:"CAMPUS SURVEILLANCE", cap:"Live 4-camera AI feed with real-time person detection." },
+  { id:"arch",       d:7500, tag:"ARCHITECTURE",cap:"Cloud-native, scalable, secure — built on proven tech." },
+  { id:"outro",      d:5500, tag:"EVERYTHING · ONE PLATFORM", cap:"Students, fees, attendance, reports, surveillance, transport, library, comms." },
+];
+
+/* =================== Engine =================== */
+const stage = document.getElementById('stage');
+const sceneEls = [...document.querySelectorAll('.scene')];
+const dotsEl = document.getElementById('dots');
+const capEl = document.getElementById('caption');
+const capTag = document.getElementById('capTag');
+const capText = document.getElementById('capText');
+const timeLbl = document.getElementById('timeLbl');
+const btnPlay = document.getElementById('btnPlay');
+const btnNext = document.getElementById('btnNext');
+const btnBack = document.getElementById('btnBack');
+const btnRestart = document.getElementById('btnRestart');
+
+let cur = -1, playing = true, sceneTimer = null, sceneStart = 0;
+const totalDur = SCENES.reduce((a,s)=>a+s.d,0);
+
+SCENES.forEach((s,i)=>{
+  const d = document.createElement('div'); d.className='d'; d.title = s.tag;
+  d.onclick = ()=> go(i);
+  dotsEl.appendChild(d);
+});
+
+function fmt(ms){ const s = Math.floor(ms/1000); return (s<10?'0':'')+s; }
+function updateDots(i){
+  [...dotsEl.children].forEach((el,k)=>{ el.classList.toggle('cur', k===i); el.classList.toggle('done', k<i); });
+}
+function showCap(s){ capTag.textContent = s.tag; capText.textContent = s.cap; capEl.classList.add('show'); }
+function hideCap(){ capEl.classList.remove('show'); }
+
+function enter(i){
+  sceneEls.forEach((el,k)=> el.classList.toggle('active', k===i));
+  const s = SCENES[i];
+  updateDots(i);
+  showCap(s);
+  sceneStart = performance.now();
+  runScene(s.id);
+  timeLbl.textContent = `${fmt(SCENES.slice(0,i).reduce((a,x)=>a+x.d,0))} / ${fmt(totalDur)}`;
+}
+
+function go(i){
+  clearTimeout(sceneTimer);
+  cur = (i + SCENES.length) % SCENES.length;
+  enter(cur);
+  if(playing) schedule();
+}
+function next(){ go(cur+1); }
+function back(){ go(cur-1); }
+function schedule(){
+  const s = SCENES[cur];
+  sceneTimer = setTimeout(()=> next(), s.d);
+}
+function setPlay(p){
+  playing = p;
+  btnPlay.textContent = p ? '❚❚' : '▶';
+  if(p) schedule(); else clearTimeout(sceneTimer);
+}
+
+btnPlay.onclick = ()=> setPlay(!playing);
+btnNext.onclick = ()=> { clearTimeout(sceneTimer); next(); };
+btnBack.onclick = ()=> { clearTimeout(sceneTimer); back(); };
+btnRestart.onclick = ()=> go(0);
+
+/* =================== Per-scene effects =================== */
+function runScene(id){
+  switch(id){
+    case 'login': runLogin(); break;
+    case 'dashboard': runDashboard(); break;
+    case 'fees': runFees(); break;
+    case 'attendance': runAttendance(); break;
+    case 'reports': runReports(); break;
+    case 'cctv': runCCTV(); break;
+    case 'arch': runArch(); break;
+  }
+}
+
+/* --- Login typing effect --- */
+function runLogin(){
+  const emailVal = document.getElementById('typ-email-val');
+  const passVal = document.getElementById('typ-pass-val');
+  const passFld = document.getElementById('typ-pass');
+  const emailFld = document.getElementById('typ-email');
+  const btn = document.getElementById('loginBtn');
+
+  emailVal.textContent = '';
+  passVal.textContent = '';
+  passFld.classList.remove('focus');
+  emailFld.classList.add('focus');
+  btn.className = 'login-btn'; btn.textContent = 'Sign in';
+
+  const email = 'principal@greenfield.edu';
+  const pwd = '••••••••••';
+  let i = 0;
+  const t1 = setInterval(()=>{
+    emailVal.textContent = email.slice(0,i++);
+    if(i>email.length){
+      clearInterval(t1);
+      emailFld.classList.remove('focus');
+      passFld.classList.add('focus');
+      let j = 0;
+      const t2 = setInterval(()=>{
+        passVal.textContent = pwd.slice(0,j++);
+        if(j>pwd.length){
+          clearInterval(t2);
+          setTimeout(()=>{
+            btn.className = 'login-btn loading';
+            btn.innerHTML = '<span class="spinner"></span> Verifying…';
+            setTimeout(()=>{
+              btn.className = 'login-btn ok';
+              btn.textContent = '✓ Welcome, Principal';
+            }, 900);
+          }, 250);
+        }
+      }, 55);
+    }
+  }, 38);
+}
+
+/* --- Dashboard count-up + bars + activity feed --- */
+function runDashboard(){
+  // Counters
+  document.querySelectorAll('#statrow .v').forEach(el=>{
+    const target = +el.dataset.count;
+    const prefix = el.dataset.prefix||'';
+    const suffix = el.dataset.suffix||'';
+    const fmt = el.dataset.format;
+    const dur = 1400; const start = performance.now();
+    function fr(now){
+      const t = Math.min(1,(now-start)/dur);
+      const v = Math.floor(target * (1 - Math.pow(1-t,3)));
+      let out = v.toLocaleString('en-IN');
+      if(fmt==='lakh') out = '₹' + (v/100000).toFixed(1) + 'L';
+      else if(fmt==='k') out = '₹' + (v/1000).toFixed(0) + 'k';
+      else out = prefix + out + suffix;
+      el.textContent = out;
+      if(t<1) requestAnimationFrame(fr);
+    }
+    requestAnimationFrame(fr);
+  });
+
+  // Bars
+  setTimeout(()=>{
+    document.querySelectorAll('#bars .bb').forEach((b,i)=>{
+      setTimeout(()=> b.style.height = b.dataset.h + '%', i*80);
+    });
+  }, 400);
+
+  // Activity feed
+  const feed = document.getElementById('actfeed');
+  feed.innerHTML = '';
+  const items = [
+    { i:'₹', c:'green', t:'Receipt generated for Aarav Sharma · ₹12,500', tm:'2m ago' },
+    { i:'◎', c:'blue', t:'New admission — Dev Mishra · Class 1 B', tm:'14m ago' },
+    { i:'⚠', c:'amber', t:'3 fee reminders queued · Class 3', tm:'28m ago' },
+    { i:'◉', c:'purple', t:'Attendance marked · Class 5 A · 96%', tm:'1h ago' },
+    { i:'▣', c:'red', t:'CCTV alert · person detected at Main Gate', tm:'1h ago' },
+  ];
+  items.forEach((it,k)=>{
+    const row = document.createElement('div');
+    row.className = 'act';
+    row.style.animationDelay = (0.5 + k*0.18) + 's';
+    row.innerHTML = `<div class="ai bg-${it.c}">${it.i}</div><div>${it.t}</div><div class="at">${it.tm}</div>`;
+    feed.appendChild(row);
+  });
+}
+
+/* --- Fees: select student, compute items, stamp paid --- */
+function runFees(){
+  const allRows = document.querySelectorAll('.scene[data-scene="fees"] .stu-row');
+  allRows.forEach(r=> r.classList.remove('sel'));
+  setTimeout(()=> allRows[0].classList.add('sel'), 400);
+  // After brief pause, compute items
+  const rcp = document.getElementById('rcpItems');
+  rcp.innerHTML = '';
+  const items = [
+    { k:'Tuition Fee (Q1)', v:9500 },
+    { k:'Transport', v:1800 },
+    { k:'Lab · Computer', v:700 },
+    { k:'Lab · Science', v:500 },
+    { k:'Activity & Sports', v:0 },
+  ];
+  let total = 0;
+  items.forEach((it,k)=>{
+    const row = document.createElement('div');
+    row.className = 'rcp-li';
+    row.style.animationDelay = (0.9 + k*0.18) + 's';
+    row.innerHTML = `<span class="k">${it.k}</span><span class="mono">₹${it.v.toLocaleString('en-IN')}</span>`;
+    rcp.appendChild(row);
+    total += it.v;
+  });
+  // Animate total count-up
+  const tEl = document.getElementById('rcpTotal');
+  tEl.textContent = '₹0';
+  const start = performance.now();
+  setTimeout(()=>{
+    const s2 = performance.now();
+    function cnt(now){
+      const t = Math.min(1,(now-s2)/900);
+      const v = Math.floor(total * (1 - Math.pow(1-t,3)));
+      tEl.textContent = '₹' + v.toLocaleString('en-IN');
+      if(t<1) requestAnimationFrame(cnt);
+    }
+    requestAnimationFrame(cnt);
+  }, 1900);
+
+  // Re-trigger stamp
+  const stamp = document.querySelector('.scene[data-scene="fees"] .stamp');
+  if(stamp){ stamp.style.animation = 'none'; stamp.offsetHeight; stamp.style.animation = ''; }
+}
+
+/* --- Attendance grid fill --- */
+function runAttendance(){
+  const rowsEl = document.getElementById('attRows');
+  rowsEl.innerHTML = '';
+  const students = [
+    { n:'Aarav Sharma', i:'AS', d:[1,1,1,1,1] },
+    { n:'Priya Patel',  i:'PP', d:[1,1,0,1,1] },
+    { n:'Rohit Kumar',  i:'RK', d:[1,1,1,1,1] },
+    { n:'Sneha Gupta',  i:'SG', d:[1,1,1,0,1] },
+    { n:'Karan Verma',  i:'KV', d:[1,1,1,1,1] },
+    { n:'Ananya Singh', i:'AN', d:[1,1,1,1,1] },
+    { n:'Dev Mishra',   i:'DM', d:[1,0,1,1,1] },
+    { n:'Riya Tiwari',  i:'RT', d:[1,1,1,1,1] },
+  ];
+  students.forEach((s,r)=>{
+    const row = document.createElement('div');
+    row.className = 'att-row';
+    row.innerHTML = `<div class="nm"><div class="mini">${s.i}</div>${s.n}</div>` +
+      s.d.map((x,c)=> `<div><div class="tick" data-r="${r}" data-c="${c}" data-x="${x}">${x? '✓' : '✗'}</div></div>`).join('');
+    rowsEl.appendChild(row);
+  });
+  // Stagger fill
+  const ticks = rowsEl.querySelectorAll('.tick');
+  let total = ticks.length, present = 0, absent = 0;
+  ticks.forEach((t,k)=>{
+    setTimeout(()=>{
+      const x = t.dataset.x === '1';
+      t.classList.add('on', x?'p':'a');
+      if(x) present++; else absent++;
+      document.getElementById('attP').textContent = present;
+      document.getElementById('attA').textContent = absent;
+    }, 150 + k*60);
+  });
+  // Ring
+  setTimeout(()=>{
+    const ring = document.getElementById('attRing');
+    const pct = Math.round(present/total * 100);
+    const c = 314;
+    ring.style.strokeDashoffset = c - (pct/100)*c;
+    // count pct
+    const pctEl = document.getElementById('attPct');
+    const s = performance.now();
+    function cnt(now){
+      const t = Math.min(1,(now-s)/1200);
+      pctEl.textContent = Math.floor(pct*t*(1.0)) + '%';
+      if(t<1) requestAnimationFrame(cnt);
+      else pctEl.textContent = pct + '%';
+    }
+    requestAnimationFrame(cnt);
+  }, 150 + total*60 + 200);
+}
+
+/* --- Report card --- */
+function runReports(){
+  const subs = [
+    { n:'Mathematics', m:92, g:'A+', cl:'grade-A' },
+    { n:'Science',     m:88, g:'A',  cl:'grade-A' },
+    { n:'English',     m:85, g:'A',  cl:'grade-A' },
+    { n:'Hindi',       m:78, g:'B+', cl:'grade-B' },
+    { n:'Social Studies', m:81, g:'A', cl:'grade-A' },
+    { n:'Computer',    m:95, g:'A+', cl:'grade-A' },
+  ];
+  const sub = document.getElementById('rptSubs'); sub.innerHTML='';
+  subs.forEach((s,k)=>{
+    const row = document.createElement('div');
+    row.className = 'rpt-sub';
+    row.style.animationDelay = (0.2 + k*0.15)+'s';
+    row.innerHTML = `<span>${s.n}</span><span><span style="color:var(--muted);margin-right:12px">${s.m}/100</span><span class="g ${s.cl}">${s.g}</span></span>`;
+    sub.appendChild(row);
+  });
+  // GPA count
+  const gpaEl = document.getElementById('gpa');
+  const target = 8.7;
+  setTimeout(()=>{
+    const s = performance.now();
+    function cnt(now){
+      const t = Math.min(1,(now-s)/1400);
+      gpaEl.textContent = (target*t).toFixed(1);
+      if(t<1) requestAnimationFrame(cnt);
+      else gpaEl.textContent = target.toFixed(1);
+    }
+    requestAnimationFrame(cnt);
+  }, 1400);
+  // Bars
+  const bars = document.getElementById('rptBars'); bars.innerHTML='';
+  subs.forEach((s,k)=>{
+    const col = document.createElement('div');
+    col.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;gap:6px';
+    col.innerHTML = `<div class="bb" style="width:100%;height:0;background:linear-gradient(180deg,var(--accent),rgba(59,130,246,.3));border-radius:5px 5px 0 0;transition:height .9s cubic-bezier(.2,.9,.3,1)"></div><div style="font-size:9px;color:var(--muted)">${s.n.split(' ')[0]}</div>`;
+    bars.appendChild(col);
+    setTimeout(()=>{ col.querySelector('.bb').style.height = s.m + '%'; }, 600 + k*120);
+  });
+}
+
+/* --- CCTV scene --- */
+function runCCTV(){
+  const grid = document.getElementById('camGrid');
+  grid.innerHTML = '';
+  CCTV_FEEDS.forEach((c,idx)=>{
+    const cell = document.createElement('div');
+    cell.className = 'cam c'+(idx+1);
+    const vid = c.src ? `<video src="${c.src}" autoplay muted loop playsinline></video>` : '';
+    cell.innerHTML = `
+      ${vid}
+      <div class="cam-fake"><div class="noise"></div><div class="walker"></div><div class="walker w2"></div></div>
+      <div class="ovl"><span class="name"><span style="width:6px;height:6px;background:var(--green);border-radius:50%;box-shadow:0 0 6px var(--green)"></span> CAM-${idx+1} · ${c.name}</span><span class="live">REC</span></div>
+      <div class="stats">${c.zone} · 1080p · 25 FPS</div>
+      <div class="bbox" style="left:28%;top:38%;width:42px;height:70px;animation-duration:${9+idx}s" data-label="Person · ${(90+idx*2)}%"></div>
+    `;
+    grid.appendChild(cell);
+  });
+  // Event log
+  const log = document.getElementById('evtLog'); log.innerHTML='';
+  const events = [
+    { tm:'10:42', ico:'👤', c:'green',  t:'Person detected · Main Gate' },
+    { tm:'10:42', ico:'🚌', c:'amber',  t:'School bus #12 arriving' },
+    { tm:'10:43', ico:'👤', c:'green',  t:'Person detected · Reception' },
+    { tm:'10:44', ico:'⚠',  c:'red',    t:'Unrecognised face · Main Gate' },
+    { tm:'10:45', ico:'👥', c:'purple', t:'Group detected · Playground' },
+    { tm:'10:45', ico:'👤', c:'green',  t:'Person detected · Corridor' },
+    { tm:'10:46', ico:'✓',  c:'green',  t:'All clear · Main Gate' },
+  ];
+  events.forEach((e,k)=>{
+    setTimeout(()=>{
+      const row = document.createElement('div');
+      row.className = 'evt';
+      row.style.animationDelay = '0s';
+      row.innerHTML = `<span class="tm mono">${e.tm}</span><span class="ico bg-${e.c}">${e.ico}</span><span>${e.t}</span>`;
+      log.appendChild(row);
+      if(log.childElementCount > 7) log.removeChild(log.firstChild);
+    }, 300 + k*900);
+  });
+}
+
+/* --- Architecture reveal --- */
+function runArch(){
+  const nodes = document.querySelectorAll('.scene[data-scene="arch"] .node');
+  nodes.forEach(n=> n.classList.remove('in'));
+  const edges = document.querySelectorAll('.scene[data-scene="arch"] .edge');
+  const pulses = document.querySelectorAll('.scene[data-scene="arch"] .pulse');
+  edges.forEach(e=> e.classList.remove('in'));
+  pulses.forEach(p=> p.classList.remove('in'));
+  // Sequenced pop-in
+  const order = [0,1,3,2,4,5,6];
+  order.forEach((d,k)=>{
+    setTimeout(()=>{
+      const n = document.querySelector('.scene[data-scene="arch"] .node[data-d="'+d+'"]');
+      if(n) n.classList.add('in');
+    }, 300 + k*350);
+  });
+  // Edges
+  setTimeout(()=>{ edges.forEach((e,k)=> setTimeout(()=> e.classList.add('in'), k*200)); }, 1800);
+  // Pulses
+  setTimeout(()=>{ pulses.forEach(p=> p.classList.add('in')); }, 3200);
+}
+
+/* =================== Kick off =================== */
+go(0);
+
+/* Keyboard controls */
+window.addEventListener('keydown', e=>{
+  if(e.key===' '){ e.preventDefault(); setPlay(!playing); }
+  else if(e.key==='ArrowRight'){ clearTimeout(sceneTimer); next(); }
+  else if(e.key==='ArrowLeft'){ clearTimeout(sceneTimer); back(); }
+  else if(e.key==='r'){ go(0); }
+});
+</script>
+</body>
+</html>
